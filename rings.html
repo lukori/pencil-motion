@@ -36,10 +36,12 @@ body:not(.dark) .lab { text-shadow:0 0 5px var(--bg), 0 0 2px var(--bg); }
 #trip .prog { position:absolute; right:-1px; bottom:20px; width:3px; border-radius:2px; background:#4f7bf0; height:2px; }
 #trip .end { position:absolute; right:0; font-size:11px; color:var(--muted); white-space:nowrap; }
 #trip .top { top:0; } #trip .bot { bottom:0; }
-#trip .tip { position:absolute; right:10px; font-size:11px; color:var(--ink); white-space:nowrap; transform:translateY(50%); }
+#trip .tip { position:absolute; right:10px; font-size:11px; letter-spacing:.05em; color:var(--muted); white-space:nowrap; transform:translateY(50%); }
 #legend { position:fixed; top:20px; left:24px; font-size:11px; color:var(--muted); line-height:1.9; direction:rtl;
   opacity:0; transition:opacity .8s; pointer-events:none; }
 body.day #legend { opacity:1; }
+#lays { display:none; gap:8px; } body.day #lays { display:flex; }
+#bar .pill.on { color:var(--ink); border-color:var(--muted); }
 #legend .sw { display:inline-block; width:46px; height:3.5px; border-radius:2px; vertical-align:middle; margin-left:8px; }
 #legend .gap { display:inline-block; width:46px; border-top:1px solid var(--muted); vertical-align:middle; margin-left:8px; }
 #msg { position:fixed; inset:0; display:grid; place-items:center; color:var(--muted); pointer-events:none; }
@@ -64,8 +66,7 @@ body.day #legend { opacity:1; }
 <div id="bar">
   <button id="play" aria-label="play">❚❚</button>
   <input id="scrub" type="range" min="0" max="1000" step="1" value="0">
-  <button id="blur" class="pill"></button>
-  <button id="lay" class="pill"></button>
+  <span id="lays"></span>
   <button id="bg" class="pill">רקע</button>
 </div>
 <div id="msg">טוען נתונים…</div>
@@ -82,8 +83,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // ================= settings =================
 const params = new URLSearchParams(location.search);
 const DARK = params.get('bg') !== 'light';
-const LAYOUTS = { snake:'מפה: נחש', columns:'מפה: עמודות', wave:'מפה: גל' };
-const LAYOUT = LAYOUTS[params.get('layout')] ? params.get('layout') : 'snake';
+const LAYOUTS = { columns:'עמודות', snake:'נחש' };
+const LAYOUT = LAYOUTS[params.get('layout')] ? params.get('layout') : 'columns';
 if (DARK) document.body.classList.add('dark');
 const CFG = {
   QUIET: 30,                 // seconds without use that end a session
@@ -221,8 +222,6 @@ const camera = new THREE.PerspectiveCamera(50, 1, 0.05, 5000);
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 let APERTURE = 0.00022;
-const BLUR = [['עומק: עדין', 0.00022], ['עומק: חזק', 0.0006], ['עומק: כבוי', 0]];
-let blurI = 0;
 const bokeh = new BokehPass(scene, camera, { focus:10, aperture:APERTURE, maxblur:0.0035 });
 composer.addPass(bokeh);
 // thin lines (gaps, ripples, label leaders) are drawn after the depth blur — blurring a 1-pixel line breaks it into dots
@@ -535,10 +534,12 @@ function hud(st){
 }
 function setPlaying(p){ playing = p; $('play').textContent = p ? '❚❚' : '▶'; }
 $('play').onclick = () => { if (dayView) $('day').click(); if (tau >= T) tau = 0; setPlaying(!playing); };
-$('blur').textContent = BLUR[0][0];
-$('blur').onclick = () => { blurI = (blurI+1) % BLUR.length; [$('blur').textContent, APERTURE] = BLUR[blurI]; };
-$('lay').textContent = LAYOUTS[LAYOUT];
-$('lay').onclick = () => { const k = Object.keys(LAYOUTS); params.set('layout', k[(k.indexOf(LAYOUT)+1) % k.length]); location.search = params.toString(); };
+// layout buttons (only visible in the day overview); switching reloads straight back into the overview
+for (const [k, name] of Object.entries(LAYOUTS)){
+  const b = document.createElement('button'); b.className = 'pill' + (k === LAYOUT ? ' on' : ''); b.textContent = name;
+  b.onclick = () => { if (k === LAYOUT) return; params.set('layout', k); params.set('view', 'overview'); location.search = params.toString(); };
+  $('lays').appendChild(b);
+}
 $('bg').onclick = () => { params.set('bg', DARK ? 'light' : 'dark'); location.search = params.toString(); };
 addEventListener('keydown', e => { if (e.code === 'Space'){ e.preventDefault(); $('play').click(); } });
 $('scrub').addEventListener('input', e => { if (dayView) $('day').click(); scrubbing = true; tau = e.target.value/1000*T; });
@@ -604,6 +605,7 @@ function frame(now){
     if (!S.length){ $('msg').textContent = 'לא נמצאו סשנים בקובץ'; return; }
     build();
     $('msg').remove();
+    if (params.get('view') === 'overview'){ params.delete('view'); history.replaceState(null, '', '?' + params.toString()); $('day').click(); }
     console.log(file, 'bins', BINS.length, 'sessions', S.length, 'story s', Math.round(T));
   } catch (e) { $('msg').textContent = 'שגיאה בטעינה: ' + e.message; console.error(e); }
   requestAnimationFrame(frame);

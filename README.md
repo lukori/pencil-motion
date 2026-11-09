@@ -7,8 +7,13 @@ A micro:bit on a pencil records how the pencil moves over a working day. The rec
 - **rings.html**: the main piece. Every work session is a spiral (like tree rings), and the quiet time between sessions is a straight line to the next spiral. It plays the whole day in about 2 minutes. **day overview** (top right) turns into a top-down map; click a ring to fly to it, Esc to go back.
 - **spiral.html**: the first sketch, one continuous flat spiral per recording.
 
-URL options for rings.html: `?bg=light` (white background, dark is the default), `?layout=snake|columns|wave`, `?file=pencil_YYYY-MM-DD.csv`.
-The background button at the bottom left is invisible on purpose (still clickable).
+In the day overview two buttons switch the map layout: **עמודות** (columns, the default) and **נחש** (snake rows). They appear only in the overview.
+URL options for rings.html: `?bg=light` (white background, dark is the default), `?layout=columns|snake`, `?file=pencil_YYYY-MM-DD.csv`.
+The background button at the bottom left is invisible on purpose (still clickable). Depth blur is fixed at "gentle" (aperture 0.00022) and has no button.
+
+## Presenting the measuring spiral live
+
+Double-click **`live.command`** in Finder (V1 on the cable, V2 on the pencil with its battery). It starts the recorder and a local web server, then opens `http://localhost:8766/spiral.html`. The spiral redraws every 5 seconds as you draw. Ctrl+C or closing the window stops everything, and the recording is saved. The live view only works on this Mac; the GitHub Pages copy shows the saved recordings.
 
 ## Hardware
 
