@@ -83,7 +83,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // ================= settings =================
 const params = new URLSearchParams(location.search);
 const DARK = params.get('bg') !== 'light';
-const LAYOUTS = { columns:'עמודות', snake:'נחש' };
+const LAYOUTS = { columns:'עמודות', wave:'גל' };
 const LAYOUT = LAYOUTS[params.get('layout')] ? params.get('layout') : 'columns';
 if (DARK) document.body.classList.add('dark');
 const CFG = {
