@@ -47,7 +47,6 @@ body.day #legend { opacity:1; }
 #stamp { position:fixed; left:24px; bottom:84px; transform:translateY(8%); direction:ltr; font-size:13px; letter-spacing:.08em;
   color:var(--muted); pointer-events:none; }
 #stamp .no { display:inline-block; background:#f2efe8; color:#111; padding:0 5px; border-radius:1px; line-height:1.35; }
-@media (max-width:760px){ #stamp { display:none; } }
 #msg { position:fixed; inset:0; display:grid; place-items:center; color:var(--muted); pointer-events:none; }
 </style>
 <script type="importmap">
@@ -491,14 +490,14 @@ let fly = null, downXY = null;
 function flyTo(tg, cp){ fly = { t:0, tg0:camTgt.clone(), cp0:camPos.clone(), tg:tg.clone(), cp:cp.clone() }; }
 renderer.domElement.addEventListener('pointerdown', e => { downXY = [e.clientX, e.clientY]; });
 renderer.domElement.addEventListener('click', e => {
-  if (!dayView || dayK < 1 || !downXY || Math.hypot(e.clientX-downXY[0], e.clientY-downXY[1]) > 5) return;
+  if (!controls || !downXY || Math.hypot(e.clientX-downXY[0], e.clientY-downXY[1]) > 5) return;
   const v = new THREE.Vector3(); let best = null, bd = 60;
   for (const s of S){
     v.copy(s.C).project(camera);
     const d = Math.hypot((v.x+1)/2*innerWidth - e.clientX, (1-v.y)/2*innerHeight - e.clientY);
     if (d < bd){ bd = d; best = s; }
   }
-  if (best) flyTo(best.C, best.C.clone().add(new THREE.Vector3(0, best.R*2.4 + 2, best.R*1.1 + 0.5)));
+  if (best) flyTo(best.C, best.C.clone().add(dayView ? new THREE.Vector3(0, best.R*2.4 + 2, best.R*1.1 + 0.5) : best.camOff));
 });
 addEventListener('keydown', e => { if (e.code === 'Escape' && dayView){ const o = overhead(); flyTo(o.tg, o.cp); } });
 
@@ -563,7 +562,9 @@ function frame(now){
     dayK = clamp(dayK + (dayView ? dt : -dt)/2.4);
     const a = follow(st), b = overhead(), m = ease(dayK);
     const dcp = a.cp.clone().lerp(b.cp, m), dtg = a.tg.clone().lerp(b.tg, m);
-    if (dayView && dayK >= 1){
+    // free navigation (drag / zoom / click a ring) in the day overview, and whenever the film is paused or at its end
+    const free = (dayView && dayK >= 1) || (!dayView && dayK === 0 && !playing && !scrubbing);
+    if (free){
       // free zoom / pan / tilt over the day map
       if (!controls){ controls = new OrbitControls(camera, renderer.domElement); controls.target.copy(camTgt);
         controls.enableDamping = true; controls.screenSpacePanning = true; }

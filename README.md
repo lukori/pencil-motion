@@ -4,7 +4,7 @@ A micro:bit on a pencil records how the pencil moves over a working day. The rec
 
 ## Live pages (GitHub Pages)
 
-- **rings.html**: the main piece. Every work session is a spiral (like tree rings), and the quiet time between sessions is a straight line to the next spiral. It plays the whole day in about 2 minutes. **day overview** (top right) turns into a top-down map; click a ring to fly to it, Esc to go back.
+- **rings.html**: the main piece. Every work session is a spiral (like tree rings), and the quiet time between sessions is a straight line to the next spiral. It plays the whole day in about 2 minutes. **day overview** (top right) turns into a top-down map; click a ring to fly to it, Esc to go back. When the film is paused (space / ▶) or has reached its end, you can also drag, zoom and click rings freely; pressing play returns to the moving camera.
 - **spiral.html**: the first sketch, one continuous flat spiral per recording.
 
 In the day overview two buttons switch the map layout: **עמודות** (columns, the default) and **גל** (wave: left to right, wandering up and down). They appear only in the overview.
