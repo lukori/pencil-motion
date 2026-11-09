@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pencil Spiral</title>
+<style>
+:root { --paper:#f3eee5; --ink:#2b2622; --muted:#8a8178; --line:#0000001a; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--paper); color:var(--ink); font:14px/1.5 -apple-system, "Helvetica Neue", sans-serif;
+       display:grid; grid-template-columns:1fr 290px; height:100vh; }
+#stage { display:flex; align-items:center; justify-content:center; overflow:hidden; padding:16px; }
+canvas { width:min(100%, calc(100vh - 32px)); aspect-ratio:1; height:auto; }
+aside { padding:18px 18px 24px; border-right:1px solid var(--line); overflow:auto; }
+h1 { font-size:16px; font-weight:500; margin:0 0 4px; }
+.sub { color:var(--muted); font-size:12px; margin:0 0 14px; }
+label { display:flex; justify-content:space-between; margin:14px 0 4px; color:var(--muted); font-size:12px; }
+label b { color:var(--ink); font-weight:500; }
+input[type=range], select { width:100%; }
+input[type=range] { direction:ltr; }
+select { padding:5px; border:1px solid var(--line); border-radius:6px; background:transparent; font:inherit; }
+button { margin-top:16px; width:100%; padding:9px; border:1px solid #0003; background:transparent; border-radius:6px; cursor:pointer; font:inherit; }
+button:hover { background:#0000000a; }
+#info { margin-top:16px; font-size:12px; color:var(--muted); white-space:pre-line; }
+hr { border:0; border-top:1px solid var(--line); margin:18px 0 4px; }
+@media (max-width:760px){ body{grid-template-columns:1fr; height:auto} aside{border-right:0;border-top:1px solid var(--line)} }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="c"></canvas></div>
+<aside>
+  <h1>קו אחד רציף</h1>
+  <p class="sub">הזמן מתגלגל מהמרכז החוצה. כל טבעת = פרק זמן קבוע.</p>
+
+  <label>הקלטה</label>
+  <select id="file"></select>
+  <label style="justify-content:flex-start;gap:8px;color:var(--ink);cursor:pointer">
+    <input type="checkbox" id="live" checked> עדכון חי <span id="liveStat" style="color:var(--muted)"></span>
+  </label>
+
+  <label>עובי הקו לפי</label>
+  <select id="wsrc"></select>
+  <label>צבע הקו לפי</label>
+  <select id="csrc"></select>
+  <label>פלטה</label>
+  <select id="pal"></select>
+  <label>הפסקות בהקלטה</label>
+  <select id="gaps"></select>
+
+  <div id="sliders"></div>
+
+  <button id="png">שמור תמונה (PNG)</button>
+  <div id="info">גרור קובץ CSV לחלון, או בחר הקלטה.</div>
+</aside>
+
+<script>
+const $ = id => document.getElementById(id);
+const C = $('c'), g = C.getContext('2d');
+const SIZE = 2000; C.width = C.height = SIZE;
+
+const SOURCES = { energy:'עוצמת תנועה', streak:'רצף שימוש', sound:'קול (שריטה)', tilt:'זווית אחיזה', rough:'תנודתיות' };
+const PALETTES = {
+  'חלודה':   ['#e6dccb','#c98b5a','#8a2c12','#2a1510'],
+  'גרפיט':   ['#ddd8cf','#8d8a85','#3a3835','#121212'],
+  'אינדיגו': ['#dfe3e6','#7f9bb3','#2d4b7a','#141a33'],
+  'טורקיז–אוכרה': ['#2f7f7a','#9fb8a0','#e2c27a','#b0641c'],
+};
+const GAPS = { rest:'כמו מנוחה — הקו ממשיך', break:'רווח — הקו נקטע' };
+const P = { gaps:'rest', wsrc:'energy', csrc:'streak', pal:'חלודה', ring:1, width:0.75, rough:0.35, smooth:6, bin:0.5 };
+const SLIDERS = [
+  ['ring',   'דקות לטבעת',             0.25, 60, 0.25],
+  ['width',  'עובי (ביחס לרווח)',       0.1, 1.8, 0.05],
+  ['rough',  'חספוס',                   0, 1, 0.05],
+  ['smooth', 'החלקה',                   1, 60, 1],
+  ['bin',    'רזולוציה (שניות לנקודה)', 0.25, 5, 0.25],
+];
+
+let ROWS = null, B = null, NAME = '';
+
+// ---------- UI ----------
+function fillSelect(el, obj, val){ el.innerHTML = Object.entries(obj).map(([k,v]) => `<option value="${k}">${v}</option>`).join(''); el.value = val; }
+fillSelect($('wsrc'), SOURCES, P.wsrc);
+fillSelect($('csrc'), SOURCES, P.csrc);
+fillSelect($('pal'), Object.fromEntries(Object.keys(PALETTES).map(k=>[k,k])), P.pal);
+fillSelect($('gaps'), GAPS, P.gaps);
+for (const id of ['wsrc','csrc','pal','gaps']) $(id).onchange = e => { P[id] = e.target.value; if (id === 'gaps') compute(); draw(); };
+
+$('sliders').innerHTML = SLIDERS.map(([k,l,mn,mx,st]) =>
+  `<label>${l}<b id="v_${k}"></b></label><input type="range" id="s_${k}" min="${mn}" max="${mx}" step="${st}">`).join('');
+function syncSliders(){ for (const [k] of SLIDERS){ $('s_'+k).value = P[k]; $('v_'+k).textContent = P[k]; } }
+for (const [k] of SLIDERS) $('s_'+k).oninput = e => {
+  P[k] = +e.target.value; $('v_'+k).textContent = P[k];
+  if (k === 'bin' || k === 'smooth') compute();
+  draw();
+};
+syncSliders();
+
+$('png').onclick = () => { const a = document.createElement('a'); a.download = (NAME || 'spiral').replace('.csv','') + '_spiral.png'; a.href = C.toDataURL('image/png'); a.click(); };
+
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', async e => {
+  e.preventDefault(); const f = e.dataTransfer.files[0]; if (!f) return;
+  load(await f.text(), f.name);
+});
+
+async function listFiles(){
+  try {
+    const html = await (await fetch('data/')).text();
+    const names = [...html.matchAll(/href="([^"]+\.csv)"/g)].map(m => decodeURIComponent(m[1]));
+    // newest-modified file last (so the file being recorded right now is picked by default)
+    const mod = {};
+    await Promise.all(names.map(async n => {
+      const r = await fetch('data/' + encodeURIComponent(n), { method:'HEAD', cache:'no-store' });
+      mod[n] = Date.parse(r.headers.get('Last-Modified')) || 0;
+    }));
+    names.sort((a, b) => mod[a] - mod[b]);
+    $('file').innerHTML = names.map(n => `<option>${n}</option>`).join('');
+    $('file').onchange = () => openFile($('file').value);
+    if (names.length){ $('file').value = names.at(-1); openFile(names.at(-1)); }
+  } catch { /* opened as file:// — drag & drop still works */ }
+}
+async function openFile(n){ load(await (await fetch('data/' + encodeURIComponent(n), { cache:'no-store' })).text(), n); }
+
+// live mode: re-read the selected file every few seconds while it is still being written
+const LIVE_EVERY = 5000;
+let busy = false, lastLen = 0;
+setInterval(async () => {
+  if (!$('live').checked || busy || !$('file').value) return;
+  busy = true;
+  try {
+    const n = $('file').value;
+    const text = await (await fetch('data/' + encodeURIComponent(n), { cache:'no-store' })).text();
+    if (text.length !== lastLen || n !== NAME){ lastLen = text.length; load(text, n); }
+    const age = ROWS ? Math.round(Date.now()/1000 - ROWS.at(-1).t) : null;
+    $('liveStat').textContent = age === null ? '' : age < 15 ? '· מקליט ●' : `· עדכון אחרון לפני ${age < 120 ? age + ' שנ׳' : Math.round(age/60) + ' דק׳'}`;
+  } catch {}
+  busy = false;
+}, LIVE_EVERY);
+
+// ---------- data ----------
+function load(text, name){
+  const lines = text.trim().split(/\r?\n/), h = lines[0].split(',');
+  const I = k => h.indexOf(k);
+  const iT = I('pc_time'), iM = I('mb_ms'), iX = I('ax'), iY = I('ay'), iZ = I('az'), iS = I('sound'), iR = I('rssi');
+  if (iT < 0 || iX < 0){ $('info').textContent = 'הקובץ לא בפורמט של logger.py'; return; }
+  const rows = []; let prevT = null, prevM = null, dropped = 0, badRun = 0;
+  for (let i = 1; i < lines.length; i++){
+    const p = lines[i].split(','); if (p.length < h.length) continue;
+    const t = new Date(p[iT].replace(' ', 'T')).getTime() / 1000;
+    const m = +p[iM], x = +p[iX], y = +p[iY], z = +p[iZ], r = +p[iR];
+    // drop corrupted rows (characters lost on the serial line):
+    // the micro:bit clock must advance like the computer clock, values must be in range
+    let okClock = prevT === null || t - prevT > 2 || Math.abs((m - prevM)/1000 - (t - prevT)) < 1;
+    badRun = okClock ? 0 : badRun + 1;
+    if (badRun > 5) okClock = true;        // many in a row = the micro:bit restarted, not corruption
+    const okVals  = Math.max(Math.abs(x), Math.abs(y), Math.abs(z)) < 4000 && (iR < 0 || (r <= -20 && r >= -110));
+    if (!okClock || !okVals || !Number.isFinite(t)){ dropped++; continue; }
+    rows.push({ t, x, y, z, s: +p[iS] || 0 });
+    prevT = t; prevM = m;
+  }
+  if (rows.length < 2) return;
+  const isNew = name !== NAME;
+  ROWS = rows; ROWS.dropped = dropped; NAME = name;
+  if (isNew){
+    const minutes = (ROWS.at(-1).t - ROWS[0].t) / 60;
+    P.ring = Math.max(0.25, Math.round(minutes / 14 * 4) / 4);   // ~14 rings by default
+    syncSliders();
+  }
+  compute(); draw();
+}
+
+function pct(arr, q){ const a = arr.filter(Number.isFinite).sort((m,n)=>m-n); return a[Math.floor((a.length-1)*q)] || 1; }
+
+function compute(){
+  if (!ROWS) return;
+  const bin = P.bin, t0 = ROWS[0].t;
+  B = []; let cur = null, prev = null;
+  for (const r of ROWS){
+    const k = Math.floor((r.t - t0) / bin);
+    if (!cur || cur.k !== k){ cur = { k, t: t0 + k*bin, n:0, e:0, e2:0, s:0, tl:0 }; B.push(cur); }
+    const d = (prev && r.t - prev.t < 1.5) ? Math.hypot(r.x-prev.x, r.y-prev.y, r.z-prev.z) : 0;
+    cur.n++; cur.e += d; cur.e2 += d*d; cur.s += r.s;
+    cur.tl += Math.atan2(Math.hypot(r.x, r.y), -r.z) * 180 / Math.PI;
+    prev = r;
+  }
+  for (const b of B){
+    b.energy = b.e / b.n;
+    b.rough  = Math.sqrt(Math.max(0, b.e2/b.n - b.energy**2));
+    b.sound  = b.s / b.n;
+    b.tilt   = b.tl / b.n;
+  }
+  // pauses in recording (logger stopped): fill with "dead time" bins, or leave as a break
+  const GAP = Math.max(3, bin*3);
+  if (P.gaps === 'rest'){
+    const F = [];
+    for (let i = 0; i < B.length; i++){
+      if (i > 0 && B[i].t - B[i-1].t > GAP)
+        for (let t = B[i-1].t + bin; t < B[i].t; t += bin)
+          F.push({ t, n:1, energy:0, rough:0, sound:0, tilt:B[i-1].tilt, dead:true });
+      F.push(B[i]);
+    }
+    B = F;
+  }
+  for (let i = 0; i < B.length; i++) B[i].gap = i > 0 && (B[i].t - B[i-1].t) > GAP;
+
+  // moving average (does not cross gaps)
+  const w = P.smooth;
+  for (const key of ['energy','rough','sound','tilt']){
+    const src = B.map(b => b[key]);
+    for (let i = 0; i < B.length; i++){
+      let s = 0, c = 0;
+      for (let j = i; j >= Math.max(0, i-w); j--){ s += src[j]; c++; if (B[j].gap) break; }
+      for (let j = i+1; j <= Math.min(B.length-1, i+w) && !B[j].gap; j++){ s += src[j]; c++; }
+      B[i][key] = s / c;
+    }
+  }
+  // normalise 0..1
+  const norm = (key, lo, hi) => { for (const b of B) b['n_'+key] = Math.min(1, Math.max(0, (b[key]-lo) / (hi-lo || 1))); };
+  const live = B.filter(b => !b.dead);
+  for (const key of ['energy','rough','sound','tilt']) norm(key, pct(live.map(b=>b[key]), 0.03), pct(live.map(b=>b[key]), 0.97));
+  for (const b of B) if (b.dead){ b.n_energy = b.n_rough = b.n_sound = 0; }
+
+  // continuity: grows while the pencil is active, drains while resting, resets on gaps
+  let st = 0;
+  for (const b of B){
+    if (b.gap) st = 0;
+    st = b.n_energy > 0.15 ? st + bin : Math.max(0, st - bin*2);
+    b.streak = st;
+  }
+  norm('streak', 0, pct(B.map(b=>b.streak), 0.97));
+}
+
+// ---------- drawing ----------
+function hex(h){ return [1,3,5].map(i => parseInt(h.slice(i,i+2),16)); }
+function palette(v){
+  const stops = PALETTES[P.pal].map(hex), f = v * (stops.length-1), i = Math.min(stops.length-2, Math.floor(f)), u = f - i;
+  const c = stops[i].map((a,k) => Math.round(a + (stops[i+1][k]-a)*u));
+  return `rgb(${c})`;
+}
+function hash(i){ const s = Math.sin(i*127.1 + 311.7) * 43758.5453; return (s - Math.floor(s)) * 2 - 1; }
+function noise(x){ const i = Math.floor(x), u = x - i, s = u*u*(3-2*u); return hash(i)*(1-s) + hash(i+1)*s; }
+
+function draw(){
+  g.fillStyle = '#f3eee5'; g.fillRect(0, 0, SIZE, SIZE);
+  if (!B || B.length < 2) return;
+
+  const N = B.length, cx = SIZE/2, cy = SIZE/2 - 30, tStart = B[0].t;
+  const turns = (B[N-1].t - tStart) / 60 / P.ring;
+  const r0 = SIZE*0.035, R = SIZE*0.43;
+  const spacing = (R - r0) / Math.max(turns, 0.001);
+  const b = spacing / (2*Math.PI);
+
+  const E = B.map((bb, i) => {
+    const u = (bb.t - tStart) / 60 / P.ring;
+    const th = u * 2*Math.PI - Math.PI/2, r = r0 + spacing*u;
+    const tx = b*Math.cos(th) - r*Math.sin(th), ty = b*Math.sin(th) + r*Math.cos(th), L = Math.hypot(tx, ty);
+    const nx = ty/L, ny = -tx/L;
+    const w = spacing * P.width * (0.06 + 0.94 * bb['n_'+P.wsrc]);
+    const j = P.rough * spacing * 0.35 * (0.25 + bb.n_rough);
+    const a = w/2 + j*noise(i*0.37), c = w/2 + j*noise(i*0.37 + 1000);
+    const x = cx + r*Math.cos(th), y = cy + r*Math.sin(th);
+    return { lx: x + nx*a, ly: y + ny*a, rx: x - nx*c, ry: y - ny*c, col: palette(bb['n_'+P.csrc]) };
+  });
+
+  g.lineWidth = 0.8; g.lineJoin = 'round';
+  for (let i = 1; i < N; i++){
+    if (B[i].gap) continue;
+    const p = E[i-1], q = E[i];
+    g.beginPath(); g.moveTo(p.lx, p.ly); g.lineTo(q.lx, q.ly); g.lineTo(q.rx, q.ry); g.lineTo(p.rx, p.ry); g.closePath();
+    g.fillStyle = g.strokeStyle = q.col; g.fill(); g.stroke();
+  }
+
+  // caption
+  const fmt = t => new Date(t*1000).toLocaleTimeString('he-IL', { hour:'2-digit', minute:'2-digit' });
+  const day = new Date(tStart*1000).toLocaleDateString('he-IL');
+  const mins = Math.round((B[N-1].t - tStart) / 60);
+  g.fillStyle = '#8a8178'; g.font = '28px -apple-system, sans-serif'; g.textAlign = 'center';
+  g.fillText(`${day}   ⁦${fmt(tStart)}–${fmt(B[N-1].t)}⁩   ·   ${mins} דק׳   ·   טבעת = ${P.ring} דק׳`, cx, SIZE - 40);
+
+  $('info').textContent =
+    `${NAME}\n${ROWS.length.toLocaleString()} דגימות (${ROWS.dropped} פגומות סוננו) · ${mins} דקות · ${N.toLocaleString()} נקודות על הקו\n` +
+    `עובי = ${SOURCES[P.wsrc]}\nצבע = ${SOURCES[P.csrc]} (בהיר → כהה)\nהפסקות = ${GAPS[P.gaps]}\nזמן מת: ${Math.round(B.filter(b=>b.dead).length * P.bin / 60)} דקות`;
+}
+
+listFiles();
+</script>
+</body>
+</html>
