@@ -44,6 +44,10 @@ body.day #legend { opacity:1; }
 #bar .pill.on { color:var(--ink); border-color:var(--muted); }
 #legend .sw { display:inline-block; width:46px; height:3.5px; border-radius:2px; vertical-align:middle; margin-left:8px; }
 #legend .gap { display:inline-block; width:46px; border-top:1px solid var(--muted); vertical-align:middle; margin-left:8px; }
+#stamp { position:fixed; left:24px; bottom:84px; transform:translateY(8%); direction:ltr; font-size:13px; letter-spacing:.08em;
+  color:var(--muted); pointer-events:none; }
+#stamp .no { display:inline-block; background:#f2efe8; color:#111; padding:0 5px; border-radius:1px; line-height:1.35; }
+@media (max-width:760px){ #stamp { display:none; } }
 #msg { position:fixed; inset:0; display:grid; place-items:center; color:var(--muted); pointer-events:none; }
 </style>
 <script type="importmap">
@@ -57,6 +61,7 @@ body.day #legend { opacity:1; }
 <div id="gl"></div>
 <div id="labels"></div>
 <div id="legend"></div>
+<div id="stamp">HB <span class="no">2</span>&nbsp;&nbsp;LUKA OR</div>
 <div id="trip"><span class="end top">ירושלים</span><div class="rail"></div><div class="prog" id="tProg"></div>
   <div class="tip" id="tTip"></div><span class="end bot">יפו</span></div>
 <div id="top">
