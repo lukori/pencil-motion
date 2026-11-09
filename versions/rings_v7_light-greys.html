@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pencil Rings</title>
+<style>
+:root { --bg:#f4f1ec; --ink:#2a2420; --muted:#8a8178; --line:#2a242033; }
+body.dark { --bg:#0d0c0b; --ink:#e9e1d6; --muted:#8d8478; --line:#ffffff38; }
+html, body { margin:0; height:100%; background:var(--bg); color:var(--ink);
+  font:13px/1.4 -apple-system, "Helvetica Neue", sans-serif; overflow:hidden; }
+#gl, #labels { position:fixed; inset:0; }
+#labels { pointer-events:none; direction:ltr; }
+.lab { color:var(--ink); font-size:11px; letter-spacing:.05em; white-space:nowrap; direction:ltr;
+  font-variant-numeric:tabular-nums; transform:translateY(-10px); }
+body.dark .lab { text-shadow:0 0 6px #000; }
+body:not(.dark) .lab { text-shadow:0 0 5px var(--bg), 0 0 2px var(--bg); }
+#top { position:fixed; top:18px; right:24px; text-align:right; font-variant-numeric:tabular-nums; }
+#day { display:inline-flex; align-items:center; gap:8px; background:none; border:0; color:var(--ink);
+  font:inherit; letter-spacing:.12em; cursor:pointer; padding:4px 0; opacity:.75; direction:ltr; }
+#day:hover, #day.on { opacity:1; }
+#day svg { width:18px; height:18px; overflow:visible; }
+#day .fill { fill:currentColor; opacity:0; transition:opacity .4s; }
+#day.on .fill { opacity:.18; }
+#hud { margin-top:10px; pointer-events:none; }
+#hud .t { font-size:24px; font-weight:300; letter-spacing:.05em; direction:ltr; }
+#hud .s { color:var(--muted); margin-top:3px; }
+#bar { position:fixed; left:24px; right:24px; bottom:20px; display:flex; gap:14px; align-items:center; direction:ltr; }
+#bar button { flex:none; background:none; border:1px solid var(--line); color:var(--ink); border-radius:50%;
+  width:36px; height:36px; cursor:pointer; font-size:13px; }
+#bar .pill { width:auto; border-radius:18px; padding:0 12px; font-size:11px; color:var(--muted); }
+#bg { opacity:0; width:auto !important; border-radius:18px !important; padding:0 12px; font-size:11px !important; color:var(--muted) !important; }
+#scrub { flex:1; accent-color:#c8641f; }
+#trip { position:fixed; right:24px; top:150px; bottom:84px; width:0; pointer-events:none; font-variant-numeric:tabular-nums; }
+#trip .rail { position:absolute; right:0; top:20px; bottom:20px; border-right:1px solid var(--line); }
+#trip .prog { position:absolute; right:-1px; bottom:20px; width:3px; border-radius:2px; background:#4f7bf0; height:2px; }
+#trip .end { position:absolute; right:0; font-size:11px; color:var(--muted); white-space:nowrap; }
+#trip .top { top:0; } #trip .bot { bottom:0; }
+#trip .tip { position:absolute; right:10px; font-size:11px; letter-spacing:.05em; color:var(--muted); white-space:nowrap; transform:translateY(50%); }
+#legend { position:fixed; top:20px; left:24px; font-size:11px; color:var(--muted); line-height:1.9; direction:rtl;
+  opacity:0; transition:opacity .8s; pointer-events:none; }
+body.day #legend { opacity:1; }
+#lays { display:none; gap:8px; } body.day #lays { display:flex; }
+#bar .pill.on { color:var(--ink); border-color:var(--muted); }
+#legend .sw { display:inline-block; width:46px; height:3.5px; border-radius:2px; vertical-align:middle; margin-left:8px; }
+#legend .gap { display:inline-block; width:46px; border-top:1px solid var(--muted); vertical-align:middle; margin-left:8px; }
+#stamp { position:fixed; left:24px; bottom:84px; transform:translateY(8%); direction:ltr; font-size:13px; letter-spacing:.08em;
+  color:var(--muted); pointer-events:none; }
+#stamp .no { display:inline-block; background:var(--muted); color:var(--bg); padding:0 5px; border-radius:1px; line-height:1.35; }
+#msg { position:fixed; inset:0; display:grid; place-items:center; color:var(--muted); pointer-events:none; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="gl"></div>
+<div id="labels"></div>
+<div id="legend"></div>
+<div id="stamp">HB <span class="no">2</span>&nbsp;&nbsp;LUKA OR</div>
+<div id="trip"><span class="end top">ירושלים</span><div class="rail"></div><div class="prog" id="tProg"></div>
+  <div class="tip" id="tTip"></div><span class="end bot">יפו</span></div>
+<div id="top">
+  <button id="day"><span>day overview</span><svg viewBox="-9 -9 18 18"><path class="fill"/><path class="ring" fill="none" stroke="currentColor" stroke-linecap="round"/><path class="ring2" fill="none" stroke="currentColor" stroke-linecap="round" opacity=".35"/></svg></button>
+  <div id="hud"><div class="t" id="hClock">--:--:--</div><div class="s" id="hSess"></div></div>
+</div>
+<div id="bar">
+  <button id="play" aria-label="play">❚❚</button>
+  <input id="scrub" type="range" min="0" max="1000" step="1" value="0">
+  <span id="lays"></span>
+  <button id="bg" class="pill">רקע</button>
+</div>
+<div id="msg">טוען נתונים…</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ================= settings =================
+const params = new URLSearchParams(location.search);
+const DARK = params.get('bg') !== 'light';
+const LAYOUTS = { columns:'עמודות', wave:'גל' };
+const LAYOUT = LAYOUTS[params.get('layout')] ? params.get('layout') : 'columns';
+if (DARK) document.body.classList.add('dark');
+const CFG = {
+  QUIET: 30,                 // seconds without use that end a session
+  BIN: 0.25,                 // seconds per point on the line
+  PLAY_SECONDS: 120,         // whole day in ~2 minutes
+  SEC_PER_TURN: 45,          // one spiral turn per 45 s of session
+  SPEED_CM_S: 4,             // typical pencil-tip speed on paper (distance estimate)
+  LABEL_MIN_SEC: 0,
+  MIN_DWELL: 1.5,
+  TREMBLE: 0.24,             // size of the trembling at the most irregular movement (world units)            // every session stays on screen at least this many seconds of playback          // sessions shorter than this get no floating label
+  // sketch time windows (HH:MM) — sessions in these windows are blue / purple–pink
+  SKETCH: [['11:30','12:15'], ['13:45','14:20'], ['15:15','15:50']],
+  SEED: 7,
+};
+// colour families, pale → deep (reversed on the dark background)
+const FAM = {
+  orange: ['#f6e3c8', '#f0b066', '#e0761f', '#a8480f', '#4f210a'],
+  red:    ['#f8d9cf', '#f08a6c', '#e0402e', '#a81d2a', '#4c0b14'],
+  blue:   ['#dbe5fa', '#86a6f4', '#3d5ee0', '#1f2c99', '#0e1447'],
+  violet: ['#f6dcf1', '#e88acb', '#b453d6', '#6a2bb0', '#2a104f'],
+};
+// light background: spirals in dark greys and black — warm greys for texts, cool greys for sketches
+if (!DARK) Object.assign(FAM, {
+  orange: ['#a9a49e', '#7f7973', '#56504b', '#2e2a27', '#0f0d0c'],
+  red:    ['#a8a19c', '#7a716c', '#4f4843', '#282320', '#0b0908'],
+  blue:   ['#a2a7ad', '#777d84', '#4f545a', '#2a2e33', '#0d0f11'],
+  violet: ['#a7a4ac', '#7b7782', '#524e58', '#2b2830', '#0e0d10'],
+});
+const BGC = DARK ? '#0d0c0b' : '#f4f1ec';
+
+const $ = id => document.getElementById(id);
+const fmt = t => new Date(t*1000).toLocaleTimeString('en-GB', { hour12:false });
+const fmtHM = t => new Date(t*1000).toLocaleTimeString('en-GB', { hour12:false, hour:'2-digit', minute:'2-digit' });
+const clamp = (v, a=0, b=1) => Math.min(b, Math.max(a, v));
+const ease = f => f*f*(3-2*f);
+function rng(seed){ return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const rand = rng(CFG.SEED);
+function hash(i){ const s = Math.sin(i*127.1 + 311.7) * 43758.5453; return (s - Math.floor(s))*2 - 1; }
+function noise(x){ const i = Math.floor(x), u = x - i, s = u*u*(3-2*u); return hash(i)*(1-s) + hash(i+1)*s; }
+const hex = h => [1,3,5].map(i => parseInt(h.slice(i,i+2),16)/255);
+function famColor(fam, v){
+  let st = FAM[fam].map(hex); if (DARK) st = st.slice().reverse();
+  const f = clamp(v)*(st.length-1), i = Math.min(st.length-2, Math.floor(f)), u = f-i;
+  return st[i].map((a,k) => a + (st[i+1][k]-a)*u);
+}
+
+// ================= data =================
+async function newestFile(){
+  try { const j = await (await fetch('data/index.json', { cache:'no-store' })).json(); if (j.files && j.files.length) return j.files.at(-1); } catch {}
+  const html = await (await fetch('data/', { cache:'no-store' })).text();
+  const names = [...html.matchAll(/href="(pencil_[^"]+\.csv)"/g)].map(m => decodeURIComponent(m[1]));
+  let best = null, bestT = -1;
+  for (const n of names){
+    const r = await fetch('data/' + encodeURIComponent(n), { method:'HEAD', cache:'no-store' });
+    const t = Date.parse(r.headers.get('Last-Modified')) || 0;
+    if (t > bestT){ bestT = t; best = n; }
+  }
+  return best;
+}
+
+function parse(text){
+  const L = text.split('\n'), h = L[0].split(','), I = k => h.indexOf(k);
+  const iT=I('pc_time'), iM=I('mb_ms'), iX=I('ax'), iY=I('ay'), iZ=I('az'), iS=I('sound'), iR=I('rssi');
+  const day0 = Date.parse(L[1].slice(0,10) + 'T00:00:00') / 1000;
+  const bins = []; let cur = null, prev = null, pT = null, pM = null, bad = 0, t0 = null;
+  for (let li = 1; li < L.length; li++){
+    const p = L[li].split(','); if (p.length < 7) continue;
+    const s = p[iT], t = day0 + (+s.substr(11,2))*3600 + (+s.substr(14,2))*60 + parseFloat(s.substr(17));
+    const m = +p[iM], x = +p[iX], y = +p[iY], z = +p[iZ], r = +p[iR];
+    let ok = pT === null || t - pT > 2 || Math.abs((m-pM)/1000 - (t-pT)) < 1;
+    bad = ok ? 0 : bad + 1; if (bad > 5) ok = true;
+    if (!ok || !(Math.max(Math.abs(x),Math.abs(y),Math.abs(z)) < 4000) || r > -20 || r < -110 || !isFinite(t)) continue;
+    pT = t; pM = m;
+    if (t0 === null) t0 = t;
+    const k = Math.floor((t - t0) / CFG.BIN);
+    if (!cur || cur.k !== k){ cur = { k, t: t0 + k*CFG.BIN, n:0, e:0, e2:0, s:0 }; bins.push(cur); }
+    const d = prev && t - prev.t < 1.5 ? Math.hypot(x-prev.x, y-prev.y, z-prev.z) : 0;
+    cur.n++; cur.e += d; cur.e2 += d*d; cur.s += +p[iS] || 0;
+    prev = { t, x, y, z };
+  }
+  for (const b of bins){ b.e /= b.n; b.rough = Math.sqrt(Math.max(0, b.e2/b.n - b.e*b.e)); b.s /= b.n; }
+  return bins;
+}
+
+function median(a){ const s = a.slice().sort((p,q)=>p-q); return s[s.length>>1] || 0; }
+function pct(a, q){ const s = a.slice().sort((p,q)=>p-q); return s[Math.floor((s.length-1)*q)] || 1; }
+
+function analyse(bins, sketchMarks){
+  const thr = Math.max(25, 2.2 * median(bins.map(b => b.e)));
+  for (const b of bins) b.active = b.e > thr;
+  const act = bins.filter(b => b.active);
+  const eMed = median(act.map(b=>b.e)) || 1, eHi = pct(act.map(b=>b.e), 0.98);
+  const rHi = pct(act.map(b=>b.rough), 0.95), sHi = pct(act.map(b=>b.s), 0.95);
+  let dist = 0;
+  for (const b of bins){
+    if (b.active && b.s > 15) dist += CFG.SPEED_CM_S * clamp(b.e/eMed, 0.4, 2.5) * CFG.BIN / 100;
+    b.dist = dist; b.en = clamp(b.e/eHi); b.rn = clamp(b.rough/rHi); b.sn = clamp(b.s/sHi);
+  }
+  const S = [];
+  bins.forEach((b, i) => {
+    if (!b.active) return;
+    const last = S.at(-1);
+    if (last && b.t - last.endT <= CFG.QUIET){ last.i1 = i; last.endT = b.t + CFG.BIN; }
+    else S.push({ i0:i, i1:i, start:b.t, endT:b.t + CFG.BIN });
+  });
+  const dayMin = t => { const d = new Date(t*1000); return d.getHours()*60 + d.getMinutes(); };
+  const hm = s => +s.slice(0,2)*60 + +s.slice(3,5);
+  for (const s of S){
+    s.dur = Math.max(s.endT - s.start, CFG.BIN*4);
+    const mid = dayMin((s.start + s.endT)/2);
+    s.kind = CFG.SKETCH.some(([a,b]) => mid >= hm(a) && mid <= hm(b))
+          || sketchMarks.some(([a,b]) => s.endT > a && s.start < b) ? 'sketch' : 'text';
+    s.fam = s.kind === 'sketch' ? (rand() < 0.5 ? 'blue' : 'violet') : (rand() < 0.5 ? 'orange' : 'red');
+  }
+  return S;
+}
+
+async function loadMarks(file){
+  try {
+    const day = file.match(/\d{4}-\d{2}-\d{2}/)[0];
+    const r = await fetch(`data/marks_${day}.csv`, { cache:'no-store' }); if (!r.ok) return [];
+    const L = (await r.text()).trim().split('\n').slice(1).map(l => l.split(','));
+    const out = [], open = {};
+    for (const [t, ev, label] of L){
+      if (!/סקיצ/.test(label || '')) continue;
+      const ts = Date.parse(t.replace(' ','T'))/1000;
+      if (ev === 'start') open[label] = ts; else if (open[label]){ out.push([open[label], ts]); delete open[label]; }
+    }
+    return out;
+  } catch { return []; }
+}
+
+// ================= scene =================
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+$('gl').appendChild(renderer.domElement);
+const labelR = new CSS2DRenderer(); $('labels').appendChild(labelR.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(BGC);
+const FOG = DARK ? 0.02 : 0.012; scene.fog = new THREE.FogExp2(BGC, FOG);
+const camera = new THREE.PerspectiveCamera(50, 1, 0.05, 5000);
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+let APERTURE = 0.00022;
+const bokeh = new BokehPass(scene, camera, { focus:10, aperture:APERTURE, maxblur:0.0035 });
+composer.addPass(bokeh);
+// thin lines (gaps, ripples, label leaders) are drawn after the depth blur — blurring a 1-pixel line breaks it into dots
+const lineScene = new THREE.Scene(); lineScene.fog = scene.fog;
+const linePass = new RenderPass(lineScene, camera); linePass.clear = false;
+composer.addPass(linePass); composer.addPass(new OutputPass());
+function resize(){
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h); composer.setSize(w, h); labelR.setSize(w, h);
+  camera.aspect = w/h; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+let S = [], BINS = [], T = 1, tau = 0, playing = true, scrubbing = false;
+const GAP_COLOR = DARK ? '#8f8577' : '#aaa197';
+const gapGeo = new THREE.CylinderGeometry(1, 1, 1, 6, 1, true).translate(0, 0.5, 0);
+
+function ringRadius(dur){ return 0.9 + 2.0*Math.sqrt(dur/60); }
+
+// where each ring sits. Seen from above (x = right, z = down the page) the path fills a ~16:10 area:
+//  snake   — rows: left→right, then right→left, …        columns — down, then up, … moving right
+//  wave    — left→right across the page, wandering up and down freely
+// In 3D every ring is also randomly above or below the previous one (y).
+function layout(){
+  const n = S.length, R = S.map(s => ringRadius(s.dur)), adv = [0];
+  for (let j = 1; j < n; j++){
+    const p = S[j-1];
+    p.gReal = S[j].start - p.endT;
+    p.gStory = p.gReal <= 30 ? p.gReal : 30*Math.sqrt(p.gReal/30);
+    S[j].len = 2 + 1.1*Math.sqrt(p.gStory);
+    adv.push(adv[j-1] + (R[j-1] + R[j])*0.6 + 0.3 + S[j].len*0.25);
+  }
+  const L = adv[n-1] || 1, A = 1.6;
+  const d2 = R.map(r => 2*r).sort((a,b) => a-b), g = d2[Math.floor((d2.length-1)*0.8)]*1.05 + 1;
+  // offset of row/column k: sum of the heights of the rows before it (row height = its biggest ring)
+  const bandCache = {};
+  const band = (k, which) => {
+    if (!bandCache.size){ const h = {}; for (let j = 0; j < n; j++){ const b = which(j); h[b] = Math.max(h[b] || 0, R[j]); }
+      let acc = 0, prevH = 0; const off = {}; const keys = Object.keys(h).map(Number).sort((a,b)=>a-b);
+      for (const b of keys){ acc += b === keys[0] ? 0 : (prevH + h[b])*0.85 + 0.4; off[b] = acc; prevH = h[b]; }
+      bandCache.off = off; bandCache.size = 1; }
+    return bandCache.off[k];
+  };
+  const out = []; let y = 0, zw = 0;
+  for (let j = 0; j < n; j++){
+    const s = adv[j]; let x, z;
+    if (LAYOUT === 'snake'){
+      const nr = Math.max(1, Math.round(Math.sqrt(L/(A*g)))), W = L/nr, row = Math.min(nr-1, Math.floor(s/W)), xr = s - row*W;
+      x = row % 2 ? W - xr : xr; z = band(row, j => Math.min(nr-1, Math.floor(adv[j]/W)));
+    } else if (LAYOUT === 'columns'){
+      const nc = Math.max(1, Math.round(Math.sqrt(A*L/g))), Hc = L/nc, col = Math.min(nc-1, Math.floor(s/Hc)), zr = s - col*Hc;
+      z = col % 2 ? Hc - zr : zr; x = band(col, j => Math.min(nc-1, Math.floor(adv[j]/Hc)));
+    } else {
+      const H = Math.sqrt(L*g*1.5/A), W = A*H;
+      x = s/L*W; zw = clamp(zw + (rand()*2-1)*g*1.3, -H/2, H/2); z = zw;
+    }
+    if (j > 0) y = y*0.9 + (rand() < 0.5 ? -1 : 1) * S[j].len * (0.35 + rand()*0.45);
+    out.push(new THREE.Vector3(x, y, LAYOUT === 'wave' ? z + (rand()-0.5)*g*0.3 : z + (rand()-0.5)*R[j]*0.4));
+  }
+  return out;
+}
+
+function build(){
+  let story = 0, prevEnd = null;
+  const POS = layout();
+  // story time of a session = its real length, but never less than MIN_DWELL seconds of playback
+  let m = 0;
+  for (let it = 0; it < 8; it++){
+    let T0 = 0; S.forEach((s, j) => { T0 += Math.max(s.dur, m) + (j < S.length-1 ? s.gStory : 0); });
+    m = CFG.MIN_DWELL * T0 / CFG.PLAY_SECONDS;
+  }
+  S.forEach(s => s.sd = Math.max(s.dur, m));
+  S.forEach((s, j) => {
+    s.R = ringRadius(s.dur);
+    // ring plane: mostly horizontal, slightly tilted
+    s.N = new THREE.Vector3((rand()-0.5)*0.5, 1, (rand()-0.5)*0.5).normalize();
+    s.E1 = new THREE.Vector3().crossVectors(s.N, new THREE.Vector3(0,0,1)).normalize();
+    s.E2 = new THREE.Vector3().crossVectors(s.N, s.E1).normalize();
+    s.C = POS[j];
+    const turns = Math.max(1, s.dur / CFG.SEC_PER_TURN), r0 = s.R*0.04, spacing = (s.R - r0)/turns;
+    const nb = s.i1 - s.i0 + 1, n = Math.max(nb, 24);
+    s.binIdx = [...Array(n)].map((_, k) => s.i0 + Math.min(nb-1, Math.floor(k*nb/n)));
+    const B = k => BINS[s.binIdx[k]];
+    const sm = key => { const out = []; for (let k = 0; k < n; k++){ let a = 0, c = 0;
+      for (let q = Math.max(0,k-4); q <= Math.min(n-1,k+4); q++){ a += B(q)[key]; c++; } out.push(a/c); } return out; };
+    const en = sm('en'), rn = sm('rn'), sn = sm('sn');
+    s.en = en;
+    const P = new Float32Array(n*2*3), Cc = new Float32Array(n*2*3), idx = [];
+    s.pts = [];
+    for (let k = 0; k < n; k++){
+      const b = B(k), u = nb < n ? k/(n-1) : clamp((b.t - s.start)/s.dur);
+      // the line trembles with use: roughness of the movement + scratching sound
+      // trembling has the same size in every ring (not tied to how dense the spiral is);
+      // only capped so it never crosses into the neighbouring turn
+      const tremble = Math.min(spacing*0.55, CFG.TREMBLE * (0.08 + 0.92*Math.max(rn[k], b.rn*0.8)) * (0.7 + 0.5*sn[k]));
+      const th = u*turns*Math.PI*2, r = Math.max(0.02, r0 + (s.R - r0)*u + tremble*0.6*noise(k*0.45 + j*31));
+      const rd = s.E1.clone().multiplyScalar(Math.cos(th)).addScaledVector(s.E2, Math.sin(th));
+      const p = s.C.clone().addScaledVector(rd, r); s.pts.push({ p, r });
+      const w = Math.min(spacing*0.75, 0.025 + spacing*(0.05 + 0.45*Math.pow(en[k], 1.3)));
+      const ea = Math.max(w*0.15, w/2 + tremble*noise(k*0.9 + j*7)), ec = Math.max(w*0.15, w/2 + tremble*noise(k*0.9 + j*7 + 500));
+      const a = p.clone().addScaledVector(rd, ea), c = p.clone().addScaledVector(rd, -ec);
+      P.set([a.x,a.y,a.z, c.x,c.y,c.z], k*6);
+      const col = famColor(s.fam, 0.3 + 0.7*Math.pow(en[k], 1.1)); Cc.set([...col, ...col], k*6);
+      if (k < n-1){ const i = k*2; idx.push(i,i+1,i+2, i+1,i+3,i+2); }
+    }
+    s.startPt = s.pts[0].p.clone(); s.endPt = s.pts.at(-1).p.clone();
+    const lc = new Float32Array(n*3); for (let k = 0; k < n; k++) lc.set(Cc.subarray(k*6, k*6+3), k*3);
+    const lg = new THREE.BufferGeometry().setFromPoints(s.pts.map(q => q.p));
+    lg.setAttribute('color', new THREE.BufferAttribute(lc, 3));
+    s.dayLine = new THREE.Line(lg, new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:0 }));
+    s.dayLine.visible = false; scene.add(s.dayLine);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(P, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(Cc, 3));
+    geo.setIndex(idx); geo.setDrawRange(0, 0);
+    s.mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors:true, side:THREE.DoubleSide }));
+    scene.add(s.mesh); s.drawn = -1;
+    // floating label + faint dashed leader from the spiral centre
+    if (s.dur >= CFG.LABEL_MIN_SEC){
+      const top = s.C.clone().addScaledVector(s.N, 0.6 + s.R*0.25);
+      s.leader = new THREE.Line(new THREE.BufferGeometry().setFromPoints([s.C, top]),
+        new THREE.LineDashedMaterial({ color:GAP_COLOR, dashSize:0.06, gapSize:0.08, transparent:true, opacity:0.5, depthTest:false }));
+      s.leader.computeLineDistances();
+      const div = document.createElement('div'); div.className = 'lab';
+      s.lab = new CSS2DObject(div); s.lab.position.copy(top); s.labDiv = div; s.labText = '';
+      s.leader.visible = s.lab.visible = false;
+      lineScene.add(s.leader); scene.add(s.lab);
+    }
+    s.camOff = new THREE.Vector3(-0.35, 1.25, 1.15).normalize().multiplyScalar(s.R*1.7 + 1.4);
+    s.t0 = story; story += s.sd;
+    if (j < S.length - 1) { s.g0 = story; }      // gap story length set when the next ring is placed
+    prevEnd = s.endPt;
+  });
+  // gaps: one continuous straight tube from the end of each spiral to the start of the next
+  story = 0;
+  S.forEach((s, j) => {
+    s.t0 = story; story += s.sd;
+    if (j < S.length - 1){
+      s.g0 = story; story += s.gStory;
+      const n = S[j+1];
+      s.gapP = s.endPt.clone(); s.gapQ = n.startPt.clone();
+      s.gapLen = s.gapP.distanceTo(s.gapQ);
+      s.gapLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([s.gapP, s.gapP.clone()]),
+        new THREE.LineBasicMaterial({ color:GAP_COLOR, transparent:true, opacity:0.85, depthTest:false }));
+      s.gapLine.visible = false; s.gapF = -1;
+      lineScene.add(s.gapLine);
+    }
+  });
+  T = story;
+}
+
+// ---------- ripples ----------
+const circle = new THREE.BufferGeometry().setFromPoints([...Array(129)].map((_,i) => {
+  const a = i/128*Math.PI*2; return new THREE.Vector3(Math.cos(a), Math.sin(a), 0); }));
+const ripples = [...Array(60)].map(() => {
+  const l = new THREE.Line(circle, new THREE.LineBasicMaterial({ transparent:true, opacity:0, depthTest:false }));
+  l.visible = false; lineScene.add(l); return { l, age:0, life:1 };
+});
+let rippleAcc = 0, rippleI = 0;
+function spawnRipple(s, r, en){
+  const R = ripples[rippleI++ % ripples.length];
+  R.l.position.copy(s.C);
+  R.l.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1), s.N);
+  R.l.material.color.setRGB(...famColor(s.fam, 0.55 + 0.4*en));
+  R.r0 = Math.max(0.05, r*0.9); R.r1 = s.R*1.35 + 0.6; R.age = 0; R.life = 2.2 + rand()*1.4; R.l.visible = true;
+}
+function updateRipples(dt){
+  for (const R of ripples){
+    if (!R.l.visible) continue;
+    R.age += dt; const f = R.age / R.life;
+    if (f >= 1){ R.l.visible = false; continue; }
+    R.l.scale.setScalar(R.r0 + (R.r1 - R.r0)*(1 - Math.pow(1-f, 3)));
+    R.l.material.opacity = 0.8 * Math.pow(1-f, 1.4);
+  }
+}
+
+// ---------- time mapping ----------
+function sessionAt(t){
+  let lo = 0, hi = S.length-1;
+  while (lo < hi){ const m = (lo+hi+1)>>1; if (S[m].t0 <= t) lo = m; else hi = m-1; }
+  return lo;
+}
+function stateAt(t){
+  const j = sessionAt(t), s = S[j];
+  if (t < s.t0 + s.sd || j === S.length-1){
+    const u = clamp((t - s.t0)/s.sd), k = Math.min(s.pts.length-1, Math.floor(u*(s.pts.length-1)));
+    return { j, inGap:false, u, k, real: s.start + u*s.dur, dist: BINS[s.binIdx[k]].dist };
+  }
+  const f = s.gStory ? clamp((t - s.g0)/s.gStory) : 1;
+  return { j, inGap:true, f, real: s.endT + f*(s.gReal || 0), dist: BINS[s.i1].dist };
+}
+
+function applyTime(t){
+  for (let j = 0; j < S.length; j++){
+    const s = S[j];
+    const u = clamp((t - s.t0)/s.sd), segs = Math.floor(u*(s.pts.length-1));
+    if (segs !== s.drawn){ s.mesh.geometry.setDrawRange(0, segs*6); s.drawn = segs; }
+    if (s.lab){
+      const vis = t >= s.t0;
+      s.lab.visible = s.leader.visible = vis;
+      if (vis){
+        const txt = dayView ? `${fmtHM(s.start)}–${fmtHM(s.endT)}` : `${fmt(s.start)} — ${fmt(s.start + u*s.dur)}`;
+        if (txt !== s.labText){ s.labDiv.textContent = txt; s.labText = txt; }
+      }
+    }
+    if (s.gapLine){
+      const f = s.gStory ? clamp((t - s.g0)/s.gStory) : (t >= s.g0 ? 1 : 0);
+      if (Math.abs(f - s.gapF) > 1e-5){
+        const q = s.gapP.clone().lerp(s.gapQ, f), a = s.gapLine.geometry.attributes.position;
+        a.setXYZ(1, q.x, q.y, q.z); a.needsUpdate = true; s.gapLine.geometry.computeBoundingSphere();
+        s.gapLine.visible = f > 0; s.gapF = f;
+      }
+    }
+  }
+}
+
+// ---------- camera ----------
+const camPos = new THREE.Vector3(-6, 8, 8), camTgt = new THREE.Vector3(), camUp = new THREE.Vector3(0,1,0);
+let orbit = 0;
+function follow(st){
+  const s = S[st.j];
+  const rot = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), Math.sin(orbit)*0.6);
+  if (!st.inGap) return { tg: s.C.clone(), cp: s.C.clone().add(s.camOff.clone().applyQuaternion(rot)) };
+  const n = S[st.j+1], f = ease(st.f);
+  const tg = s.gapP.clone().lerp(s.gapQ, st.f).lerp(s.C.clone().lerp(n.C, f), 0.5);
+  const off = s.camOff.clone().lerp(n.camOff, f).applyQuaternion(rot);
+  return { tg, cp: tg.clone().add(off) };
+}
+
+// ---------- day view (top-down map) ----------
+let dayView = false, dayK = 0, controls = null;            // dayK animates 0 → 1
+let savedTau = 0, savedPlaying = false;
+function overhead(){
+  const box = new THREE.Box3();
+  for (const s of S){ box.expandByPoint(s.C.clone().addScalar(s.R)); box.expandByPoint(s.C.clone().addScalar(-s.R)); }
+  const c = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vector3());
+  const fov = camera.fov * Math.PI/180, fit = Math.max(size.x / camera.aspect, size.z) * 0.53 / Math.tan(fov/2) + 0.5;
+  return { tg: new THREE.Vector3(c.x, c.y, c.z), cp: new THREE.Vector3(c.x, box.max.y + fit, c.z + 0.001) };
+}
+$('day').onclick = () => {
+  dayView = !dayView; $('day').classList.toggle('on', dayView); document.body.classList.toggle('day', dayView);
+  for (const s of S) s.labText = '';
+  if (dayView){ savedTau = tau; savedPlaying = playing; setPlaying(false); tau = T; }
+  else { tau = savedTau; setPlaying(savedPlaying); }
+};
+
+// day map: show the longest sessions' labels first, hide any that would overlap (zoom in to reveal more)
+function declutter(){
+  const W = innerWidth, H = innerHeight, taken = [], v = new THREE.Vector3();
+  const order = S.filter(s => s.lab).sort((a,b) => b.dur - a.dur);
+  for (const s of order){
+    v.copy(s.C).project(camera);
+    const x = (v.x+1)/2*W, y = (1-v.y)/2*H, w = 74, h = 16;
+    const hit = v.z > 1 || x < 0 || x > W || y < 0 || y > H || taken.some(r => Math.abs(r[0]-x) < w && Math.abs(r[1]-y) < h);
+    s.labDiv.style.opacity = hit ? 0 : 0.85;
+    if (!hit) taken.push([x, y]);
+  }
+}
+
+// day map: click a ring to fly to it, Esc (or the day button twice) to see the whole map again
+let fly = null, downXY = null;
+function flyTo(tg, cp){ fly = { t:0, tg0:camTgt.clone(), cp0:camPos.clone(), tg:tg.clone(), cp:cp.clone() }; }
+renderer.domElement.addEventListener('pointerdown', e => { downXY = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('click', e => {
+  if (!controls || !downXY || Math.hypot(e.clientX-downXY[0], e.clientY-downXY[1]) > 5) return;
+  const v = new THREE.Vector3(); let best = null, bd = 60;
+  for (const s of S){
+    v.copy(s.C).project(camera);
+    const d = Math.hypot((v.x+1)/2*innerWidth - e.clientX, (1-v.y)/2*innerHeight - e.clientY);
+    if (d < bd){ bd = d; best = s; }
+  }
+  if (best) flyTo(best.C, best.C.clone().add(dayView ? new THREE.Vector3(0, best.R*2.4 + 2, best.R*1.1 + 0.5) : best.camOff));
+});
+addEventListener('keydown', e => { if (e.code === 'Escape' && dayView){ const o = overhead(); flyTo(o.tg, o.cp); } });
+
+// coffee-mark ring for the day button: uneven radius, a heavier edge on one side, a faint second trace
+(function(){
+  const pts = (r, amp, seed, from=0, to=1) => { let d = '';
+    for (let i = 0; i <= 64; i++){ const a = (from + (to-from)*i/64)*Math.PI*2;
+      const rr = r + amp*noise(i*0.35 + seed) + amp*0.6*Math.sin(a*2 + seed);
+      d += (i ? 'L' : 'M') + (Math.cos(a)*rr).toFixed(2) + ' ' + (Math.sin(a)*rr).toFixed(2); }
+    return d; };
+  const svg = $('day').querySelector('svg');
+  svg.querySelector('.ring').setAttribute('d', pts(6.6, 0.45, 3));
+  svg.querySelector('.ring').setAttribute('stroke-width', '1.35');
+  svg.querySelector('.ring2').setAttribute('d', pts(5.9, 0.5, 11, 0.15, 0.62));
+  svg.querySelector('.ring2').setAttribute('stroke-width', '0.8');
+  svg.querySelector('.fill').setAttribute('d', pts(6.4, 0.45, 3) + 'Z');
+})();
+
+// colour legend (shown in the day overview)
+(function(){
+  const grad = f => { const st = FAM[f].slice(1, 4); return `linear-gradient(to left, ${(DARK ? st.reverse() : st).join(',')})`; };
+  $('legend').innerHTML =
+    `<div><span class="sw" style="background:${grad('blue')}"></span><span class="sw" style="background:${grad('violet')}"></span>סקיצות</div>` +
+    `<div><span class="sw" style="background:${grad('orange')}"></span><span class="sw" style="background:${grad('red')}"></span>טקסטים ומחשבות</div>` +
+    `<div>עומק הגוון = עוצמת התנועה</div>` +
+    `<div><span class="gap"></span>זמן בלי שימוש</div>`;
+})();
+
+// ---------- HUD & controls ----------
+function hud(st){
+  $('hClock').textContent = fmt(st.real);
+  $('hSess').textContent = dayView ? `${S.length} סשנים` : st.inGap ? `בין סשן ${st.j+1} ל-${st.j+2} · שקט` : `סשן ${st.j+1} / ${S.length}`;
+  const frac = st.dist / 54000, railH = $('trip').clientHeight - 40;
+  const h = Math.max(2, frac * railH);
+  $('tProg').style.height = h + 'px';
+  $('tTip').style.bottom = (20 + h) + 'px';
+  $('tTip').textContent = `${st.dist.toFixed(1)} מ׳ · ${(frac*100).toFixed(2)}%`;
+}
+function setPlaying(p){ playing = p; $('play').textContent = p ? '❚❚' : '▶'; }
+$('play').onclick = () => { if (dayView) $('day').click(); if (tau >= T) tau = 0; setPlaying(!playing); };
+// layout buttons (only visible in the day overview); switching reloads straight back into the overview
+for (const [k, name] of Object.entries(LAYOUTS)){
+  const b = document.createElement('button'); b.className = 'pill' + (k === LAYOUT ? ' on' : ''); b.textContent = name;
+  b.onclick = () => { if (k === LAYOUT) return; params.set('layout', k); params.set('view', 'overview'); location.search = params.toString(); };
+  $('lays').appendChild(b);
+}
+$('bg').onclick = () => { params.set('bg', DARK ? 'light' : 'dark'); location.search = params.toString(); };
+addEventListener('keydown', e => { if (e.code === 'Space'){ e.preventDefault(); $('play').click(); } });
+$('scrub').addEventListener('input', e => { if (dayView) $('day').click(); scrubbing = true; tau = e.target.value/1000*T; });
+$('scrub').addEventListener('change', () => { scrubbing = false; });
+
+// ---------- loop ----------
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(0.1, (now - last)/1000); last = now;
+  if (S.length){
+    if (playing && !scrubbing && !dayView){ tau = Math.min(T, tau + dt*T/CFG.PLAY_SECONDS); if (tau >= T) setPlaying(false); }
+    if (!scrubbing) $('scrub').value = Math.round(tau/T*1000);
+    applyTime(tau);
+    const st = stateAt(tau);
+    orbit += dt*0.15;
+    dayK = clamp(dayK + (dayView ? dt : -dt)/2.4);
+    const a = follow(st), b = overhead(), m = ease(dayK);
+    const dcp = a.cp.clone().lerp(b.cp, m), dtg = a.tg.clone().lerp(b.tg, m);
+    // free navigation (drag / zoom / click a ring) in the day overview, and whenever the film is paused or at its end
+    const free = (dayView && dayK >= 1) || (!dayView && dayK === 0 && !playing && !scrubbing);
+    if (free){
+      // free zoom / pan / tilt over the day map
+      if (!controls){ controls = new OrbitControls(camera, renderer.domElement); controls.target.copy(camTgt);
+        controls.enableDamping = true; controls.screenSpacePanning = true; }
+      if (fly){ fly.t = Math.min(1, fly.t + dt/1.3); const f = ease(fly.t);
+        controls.target.copy(fly.tg0).lerp(fly.tg, f); camera.position.copy(fly.cp0).lerp(fly.cp, f); if (fly.t >= 1) fly = null; }
+      controls.update(); camPos.copy(camera.position); camTgt.copy(controls.target);
+    } else {
+      if (controls){ controls.dispose(); controls = null; }
+      const k = dayK > 0 && dayK < 1 ? 1 : 1 - Math.exp(-dt*(scrubbing ? 8 : 2.2));
+      camPos.lerp(dcp, k); camTgt.lerp(dtg, k);
+      camUp.set(0,1,0).lerp(new THREE.Vector3(0,0,-1), m).normalize();
+      camera.up.copy(camUp); camera.position.copy(camPos); camera.lookAt(camTgt);
+    }
+    bokeh.uniforms.focus.value = camPos.distanceTo(camTgt);
+    bokeh.uniforms.aperture.value = APERTURE * (1 - m);
+    scene.fog.density = FOG * (1 - m*0.97);
+    if (playing && !scrubbing && !st.inGap && !dayView){
+      const s = S[st.j], en = s.en[st.k];
+      rippleAcc += dt*(0.6 + 5*en);
+      if (rippleAcc > 1){ rippleAcc = 0; spawnRipple(s, s.pts[st.k].r, en); }
+    }
+    updateRipples(dt);
+    for (const s of S){
+      s.dayLine.visible = m > 0.01; s.dayLine.material.opacity = 0.9*m;
+    }
+    if (dayView) declutter();
+    else for (const s of S) if (s.lab && s.lab.visible){
+      const dd = camPos.distanceTo(s.lab.position);
+      s.labDiv.style.opacity = clamp(1.3 - dd/22, 0.06, 0.85);
+    }
+    hud(dayView ? { ...st, real: S.at(-1).endT, dist: BINS.at(-1).dist } : st);
+  }
+  composer.render(); labelR.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+
+// ---------- start ----------
+(async () => {
+  try {
+    const file = params.get('file') || await newestFile();
+    const [text, marks] = await Promise.all([ (await fetch('data/' + encodeURIComponent(file), { cache:'no-store' })).text(), loadMarks(file) ]);
+    BINS = parse(text);
+    S = analyse(BINS, marks);
+    if (!S.length){ $('msg').textContent = 'לא נמצאו סשנים בקובץ'; return; }
+    build();
+    $('msg').remove();
+    if (params.get('view') === 'overview'){ params.delete('view'); history.replaceState(null, '', '?' + params.toString()); $('day').click(); }
+    console.log(file, 'bins', BINS.length, 'sessions', S.length, 'story s', Math.round(T));
+  } catch (e) { $('msg').textContent = 'שגיאה בטעינה: ' + e.message; console.error(e); }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
