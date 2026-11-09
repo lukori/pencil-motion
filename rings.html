@@ -227,7 +227,7 @@ const FOG = DARK ? 0.02 : 0.012; scene.fog = new THREE.FogExp2(BGC, FOG);
 const camera = new THREE.PerspectiveCamera(50, 1, 0.05, 5000);
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-let APERTURE = 0.00022;
+let APERTURE = DARK ? 0.00022 : 0;   // no depth blur on the light background
 const bokeh = new BokehPass(scene, camera, { focus:10, aperture:APERTURE, maxblur:0.0035 });
 composer.addPass(bokeh);
 // thin lines (gaps, ripples, label leaders) are drawn after the depth blur — blurring a 1-pixel line breaks it into dots
