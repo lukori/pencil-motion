@@ -110,6 +110,13 @@ const FAM = {
   blue:   ['#dbe5fa', '#86a6f4', '#3d5ee0', '#1f2c99', '#0e1447'],
   violet: ['#f6dcf1', '#e88acb', '#b453d6', '#6a2bb0', '#2a104f'],
 };
+// light background: spirals in dark greys and black — warm greys for texts, cool greys for sketches
+if (!DARK) Object.assign(FAM, {
+  orange: ['#a9a49e', '#7f7973', '#56504b', '#2e2a27', '#0f0d0c'],
+  red:    ['#a8a19c', '#7a716c', '#4f4843', '#282320', '#0b0908'],
+  blue:   ['#a2a7ad', '#777d84', '#4f545a', '#2a2e33', '#0d0f11'],
+  violet: ['#a7a4ac', '#7b7782', '#524e58', '#2b2830', '#0e0d10'],
+});
 const BGC = DARK ? '#0d0c0b' : '#f4f1ec';
 
 const $ = id => document.getElementById(id);
