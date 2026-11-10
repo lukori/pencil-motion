@@ -48,7 +48,8 @@ body.day #legend { opacity:1; }
   color:var(--muted); cursor:default; user-select:none; }
 #poem { position:absolute; left:0; right:0; bottom:100%; margin-bottom:12px; direction:rtl; letter-spacing:0;
   line-height:1.7; opacity:0; transform:translateY(4px); transition:opacity .6s, transform .6s; pointer-events:none; }
-#poem div { text-align:justify; text-align-last:justify; white-space:nowrap; }
+#poem div { text-align:right; white-space:nowrap; }
+#poem .by { margin-top:6px; }
 #stamp.open #poem { opacity:1; transform:none; }
 #stamp .no { display:inline-block; background:var(--muted); color:var(--bg); padding:0 5px; border-radius:1px; line-height:1.35; }
 #msg { position:fixed; inset:0; display:grid; place-items:center; color:var(--muted); pointer-events:none; }
@@ -65,10 +66,10 @@ body.day #legend { opacity:1; }
 <div id="labels"></div>
 <div id="legend"></div>
 <div id="stamp">HB <span class="no">2</span>&nbsp;&nbsp;LUKA OR<div id="poem">
-  <div>שִׂמְחַת הַכְּתִיבָה.</div>
+  <div>״שִׂמְחַת הַכְּתִיבָה.</div>
   <div>הַיְּכֹלֶת לְהַנְצִיחַ.</div>
-  <div>נִקְמַת הַיָּד בַּת הַתְּמוּתָה.</div>
-  <div>ויסלבה שימבורסקה</div>
+  <div>נִקְמַת הַיָּד בַּת הַתְּמוּתָה.״</div>
+  <div class="by">ויסלבה שימבורסקה</div>
 </div></div>
 <div id="trip"><span class="end top">ירושלים</span><div class="rail"></div><div class="prog" id="tProg"></div>
   <div class="tip" id="tTip"></div><span class="end bot">יפו</span></div>
@@ -538,13 +539,13 @@ addEventListener('keydown', e => { if (e.code === 'Escape' && dayView){ const o 
 })();
 
 // the pencil stamp opens / closes a short poem above it (no visual hint that it is clickable)
-// font size is fitted so the longest line spans exactly the width of "HB 2  LUKA OR", every line justified to it
+// font size is fitted so the longest line spans the width of "HB 2  LUKA OR"; lines are right-aligned
 function fitPoem(){
   const poem = $('poem'), W = $('stamp').getBoundingClientRect().width;
   poem.style.fontSize = '13px';
   let widest = 0;
   for (const d of poem.children){
-    const m = document.createElement('span'); m.textContent = d.textContent;
+    const m = document.createElement('span'); m.textContent = d.textContent.replace(/״/g, '');   // quote marks hang outside the measured width
     m.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;font-size:13px';
     poem.appendChild(m); widest = Math.max(widest, m.getBoundingClientRect().width); m.remove();
   }
