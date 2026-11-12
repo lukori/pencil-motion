@@ -45,7 +45,8 @@ body.day #legend { opacity:1; }
 #legend .sw { display:inline-block; width:46px; height:3.5px; border-radius:2px; vertical-align:middle; margin-left:8px; }
 #legend .gap { display:inline-block; width:46px; border-top:1px solid var(--muted); vertical-align:middle; margin-left:8px; }
 #stamp { position:fixed; left:24px; bottom:84px; transform:translateY(8%); direction:ltr; font-size:13px; letter-spacing:.08em;
-  color:var(--muted); cursor:default; user-select:none; }
+  color:var(--muted); cursor:pointer; user-select:none; transition:color .3s; }
+#stamp:hover { color:var(--ink); }   /* small hint that the stamp can be clicked */
 #poem { position:absolute; left:0; right:0; bottom:100%; margin-bottom:12px; direction:rtl; letter-spacing:0;
   line-height:1.7; opacity:0; transform:translateY(4px); transition:opacity .6s, transform .6s; pointer-events:none; }
 #poem div { text-align:right; white-space:nowrap; }
@@ -538,7 +539,7 @@ addEventListener('keydown', e => { if (e.code === 'Escape' && dayView){ const o 
     `<div><span class="gap"></span>זמן בלי שימוש</div>`;
 })();
 
-// the pencil stamp opens / closes a short poem above it (no visual hint that it is clickable)
+// the pencil stamp opens / closes a short poem above it (hover: pointer cursor + slightly brighter)
 // font size is fitted so the longest line spans the width of "HB 2  LUKA OR"; lines are right-aligned
 function fitPoem(){
   const poem = $('poem'), W = $('stamp').getBoundingClientRect().width;
