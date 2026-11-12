@@ -582,7 +582,7 @@ let last = performance.now();
 function frame(now){
   const dt = Math.min(0.1, (now - last)/1000); last = now;
   if (S.length){
-    if (playing && !scrubbing && !dayView){ tau = Math.min(T, tau + dt*T/CFG.PLAY_SECONDS); if (tau >= T) setPlaying(false); }
+    if (playing && !scrubbing && !dayView){ tau = Math.min(T, tau + dt*T/CFG.PLAY_SECONDS); if (tau >= T){ setPlaying(false); $('day').click(); } }   // film ended by playing → straight into the day overview
     if (!scrubbing) $('scrub').value = Math.round(tau/T*1000);
     applyTime(tau);
     const st = stateAt(tau);
