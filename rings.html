@@ -40,7 +40,6 @@ body:not(.dark) .lab { text-shadow:0 0 5px var(--bg), 0 0 2px var(--bg); }
 #legend { position:fixed; top:20px; left:24px; font-size:11px; color:var(--muted); line-height:1.9; direction:rtl;
   opacity:0; transition:opacity .8s; pointer-events:none; }
 body.day #legend { opacity:1; }
-#lays { display:none; gap:8px; } body.day #lays { display:flex; }
 #bar .pill.on { color:var(--ink); border-color:var(--muted); }
 #legend .sw { display:inline-block; width:46px; height:3.5px; border-radius:2px; vertical-align:middle; margin-left:8px; }
 #legend .gap { display:inline-block; width:46px; border-top:1px solid var(--muted); vertical-align:middle; margin-left:8px; }
@@ -81,7 +80,6 @@ body.day #legend { opacity:1; }
 <div id="bar">
   <button id="play" aria-label="play">❚❚</button>
   <input id="scrub" type="range" min="0" max="1000" step="1" value="0">
-  <span id="lays"></span>
   <button id="bg" class="pill">רקע</button>
 </div>
 <div id="msg">טוען נתונים…</div>
@@ -98,8 +96,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // ================= settings =================
 const params = new URLSearchParams(location.search);
 const DARK = params.get('bg') !== 'light';
-const LAYOUTS = { columns:'עמודות', wave:'גל' };
-const LAYOUT = LAYOUTS[params.get('layout')] ? params.get('layout') : 'columns';
+const LAYOUT = 'wave';   // the map always uses the wave layout (columns / snake code paths remain but are unused)
 if (DARK) document.body.classList.add('dark');
 const CFG = {
   QUIET: 30,                 // seconds without use that end a session
@@ -567,12 +564,6 @@ function hud(st){
 }
 function setPlaying(p){ playing = p; $('play').textContent = p ? '❚❚' : '▶'; }
 $('play').onclick = () => { if (dayView) $('day').click(); if (tau >= T) tau = 0; setPlaying(!playing); };
-// layout buttons (only visible in the day overview); switching reloads straight back into the overview
-for (const [k, name] of Object.entries(LAYOUTS)){
-  const b = document.createElement('button'); b.className = 'pill' + (k === LAYOUT ? ' on' : ''); b.textContent = name;
-  b.onclick = () => { if (k === LAYOUT) return; params.set('layout', k); params.set('view', 'overview'); location.search = params.toString(); };
-  $('lays').appendChild(b);
-}
 $('bg').onclick = () => { params.set('bg', DARK ? 'light' : 'dark'); location.search = params.toString(); };
 addEventListener('keydown', e => { if (e.code === 'Space'){ e.preventDefault(); $('play').click(); } });
 $('scrub').addEventListener('input', e => { if (dayView) $('day').click(); scrubbing = true; tau = e.target.value/1000*T; });

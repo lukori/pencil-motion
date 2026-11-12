@@ -7,8 +7,8 @@ A micro:bit on a pencil records how the pencil moves over a working day. The rec
 - **rings.html**: the main piece. Every work session is a spiral (like tree rings), and the quiet time between sessions is a straight line to the next spiral. It plays the whole day in about 2 minutes. **day overview** (top right) turns into a top-down map; click a ring to fly to it, Esc to go back. When the film is paused (space / ▶) or has reached its end, you can also drag, zoom and click rings freely; pressing play returns to the moving camera.
 - **spiral.html**: the first sketch, one continuous flat spiral per recording.
 
-In the day overview two buttons switch the map layout: **עמודות** (columns, the default) and **גל** (wave: left to right, wandering up and down). They appear only in the overview.
-URL options for rings.html: `?bg=light` (white background, dark is the default), `?layout=columns|wave`, `?file=pencil_YYYY-MM-DD.csv`.
+The map always uses the **wave** layout (left to right, wandering up and down); the columns layout and its buttons were removed.
+URL options for rings.html: `?bg=light` (white background, dark is the default), `?file=pencil_YYYY-MM-DD.csv`.
 The background button at the bottom left is invisible on purpose (still clickable). Depth blur is fixed at "gentle" (aperture 0.00022) and has no button.
 
 ## Presenting the measuring spiral live
